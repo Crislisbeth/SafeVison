@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="SafeVision - Panel de Control">
+    <title>SafeVision - Dashboard</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+
+<body>
+    <div class="app-layout">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon">🛡️</div>
+                <h2>SafeVision</h2>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item active">
+                    <span class="nav-icon">📊</span>
+                    Dashboard
+                </a>
+                <a href="/live" class="nav-item">
+                    <span class="nav-icon">📹</span>
+                    Cámara en Vivo
+                </a>
+                <a href="#" class="nav-item" onclick="openAnalyzeModal();return false;">
+                    <span class="nav-icon">🔍</span>
+                    Analizar Imagen
+                </a>
+
+                <div class="nav-spacer"></div>
+
+                <a href="#" class="nav-item" onclick="logout();return false;">
+                    <span class="nav-icon">🚪</span>
+                    Cerrar Sesión
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">A</div>
+                    <div class="user-details">
+                        <div class="name" id="userName">Administrador</div>
+                        <div class="role" id="userRole">admin</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()">☰</button>
+                    <h1>Panel de Control</h1>
+                </div>
+                <div class="header-right">
+                    <span class="header-time" id="headerTime">--:--:--</span>
+                    <div class="system-status">
+                        <span class="status-dot"></span>
+                        <span id="systemStatus">Operativo</span>
+                    </div>
+                    <button class="btn-logout" onclick="logout()">Salir</button>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <div class="page-content">
+                <!-- Stats Cards -->
+                <div class="stats-grid stagger" id="statsGrid">
+                    <div class="stat-card cyan">
+                        <div class="stat-icon">📷</div>
+                        <div class="stat-value" id="statCameras">-</div>
+                        <div class="stat-label">Cámaras Activas</div>
+                    </div>
+                    <div class="stat-card green">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-value" id="statDetections">-</div>
+                        <div class="stat-label">Detecciones Hoy</div>
+                    </div>
+                    <div class="stat-card orange">
+                        <div class="stat-icon">📋</div>
+                        <div class="stat-value" id="statTotal">-</div>
+                        <div class="stat-label">Total Detecciones</div>
+                    </div>
+                    <div class="stat-card red">
+                        <div class="stat-icon">⚠️</div>
+                        <div class="stat-value" id="statAlerts">-</div>
+                        <div class="stat-label">Alertas Altas</div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div style="display:flex; gap:12px; margin-bottom:24px; flex-wrap:wrap;">
+                    <a href="/live" class="btn btn-primary" style="width:auto;">
+                        📹 Cámara en Vivo
+                    </a>
+                    <button class="btn btn-secondary" onclick="openAnalyzeModal()">
+                        🔍 Analizar Imagen
+                    </button>
+                    <button class="btn btn-secondary" onclick="loadActivity()">
+                        🔄 Actualizar
+                    </button>
+                </div>
+
+                <!-- Activity Table -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2>📋 Actividad Reciente</h2>
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Evento</th>
+                                    <th>Cámara</th>
+                                    <th>Tiempo</th>
+                                    <th>Alerta</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activityBody">
+                                <tr>
+                                    <td colspan="4">
+                                        <div class="empty-state">
+                                            <div class="empty-icon">📋</div>
+                                            <h3>Sin actividad reciente</h3>
+                                            <p>Las detecciones aparecerán aquí cuando el sistema procese imágenes.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Upload Modal -->
+    <div id="analyzeModal"
+        style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; align-items:center; justify-content:center;">
+        <div
+            style="background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-xl); padding:32px; width:90%; max-width:500px; animation: fadeInUp 0.3s ease;">
+            <h2 style="margin-bottom:20px; font-size:1.15rem;">🔍 Analizar Imagen</h2>
+            <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:20px;">
+                Suba una imagen para detectar mascarillas y cascos con YOLOv8.
+            </p>
+            <input type="file" id="analyzeFile" accept="image/*" class="form-input" style="padding:10px;">
+            <div style="display:flex; gap:12px; margin-top:20px;">
+                <button class="btn btn-primary" style="flex:1;" onclick="analyzeImage()">Analizar</button>
+                <button class="btn btn-secondary" style="flex:1;" onclick="closeAnalyzeModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/dashboard.js"></script>
+</body>
+
+</html>

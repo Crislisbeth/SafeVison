@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeVision - Cámara en Vivo</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+
+<body>
+    <div class="app-layout">
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <div class="brand-icon">🛡️</div>
+                <h2>SafeVision</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-item">
+                    <span class="nav-icon">📊</span>
+                    Dashboard
+                </a>
+                <a href="/live" class="nav-item active">
+                    <span class="nav-icon">📹</span>
+                    Cámara en Vivo
+                </a>
+                <div class="nav-spacer"></div>
+                <a href="#" class="nav-item" onclick="logout();return false;">
+                    <span class="nav-icon">🚪</span>
+                    Cerrar Sesión
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">A</div>
+                    <div class="user-details">
+                        <div class="name" id="userName">Administrador</div>
+                        <div class="role" id="userRole">admin</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()">☰</button>
+                    <h1>📹 Cámara en Vivo</h1>
+                </div>
+                <div class="header-right">
+                    <a href="/dashboard" class="btn btn-secondary btn-sm">← Dashboard</a>
+                </div>
+            </header>
+
+            <div class="page-content">
+                <div class="live-layout">
+                    <!-- Camera Feed -->
+                    <div class="camera-feed">
+                        <div class="feed-header">
+                            <div class="camera-status">
+                                <div class="live-indicator" id="liveIndicator" style="display:none;">
+                                    <span class="dot"></span>
+                                    LIVE
+                                </div>
+                                <span style="font-size:0.88rem; color:var(--text-secondary);" id="cameraName">Entrada
+                                    Principal (CAM-001)</span>
+                            </div>
+                        </div>
+
+                        <div class="feed-container" id="feedContainer">
+                            <div class="feed-placeholder" id="feedPlaceholder">
+                                <div class="icon">📹</div>
+                                <h3>Cámara desactivada</h3>
+                                <p>Presione "Iniciar Cámara" para comenzar la transmisión en vivo con detección de
+                                    seguridad.</p>
+                            </div>
+                            <img id="cameraStream" src="" alt="Live feed" style="display:none;">
+                        </div>
+
+                        <div class="feed-controls">
+                            <button class="btn btn-success" id="btnStart" onclick="startCamera()">
+                                ▶ Iniciar Cámara
+                            </button>
+                            <button class="btn btn-danger" id="btnStop" onclick="stopCamera()" style="display:none;">
+                                ⏹ Detener
+                            </button>
+                            <button class="btn btn-primary" id="btnCapture" onclick="captureFrame()"
+                                style="display:none;">
+                                📸 Capturar y Analizar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Live Sidebar - Recent Captures -->
+                    <div class="live-sidebar">
+                        <div class="section-card" style="flex:1; display:flex; flex-direction:column;">
+                            <div class="section-header">
+                                <h2>Capturas Recientes</h2>
+                            </div>
+                            <div id="capturesList" style="padding:12px; flex:1; overflow-y:auto;">
+                                <div class="empty-state" style="padding:30px 10px;">
+                                    <div class="empty-icon">📸</div>
+                                    <h3>Sin capturas</h3>
+                                    <p>Las capturas aparecerán aquí al presionar "Capturar y Analizar".</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/live.js"></script>
+</body>
+
+</html>
