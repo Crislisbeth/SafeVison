@@ -114,25 +114,26 @@
                 <!-- Activity Table -->
                 <div class="section-card">
                     <div class="section-header">
-                        <h2>📋 Actividad Reciente</h2>
+                        <h2>Actividad Reciente</h2>
+                        <button class="btn btn-sm btn-secondary" onclick="clearAllDetections()" style="font-size:0.75rem;">Limpiar todo</button>
                     </div>
                     <div class="table-container">
                         <table>
                             <thead>
                                 <tr>
                                     <th>Evento</th>
-                                    <th>Cámara</th>
+                                    <th>Camara</th>
                                     <th>Tiempo</th>
                                     <th>Alerta</th>
+                                    <th style="width:50px;"></th>
                                 </tr>
                             </thead>
                             <tbody id="activityBody">
                                 <tr>
-                                    <td colspan="4">
+                                    <td colspan="5">
                                         <div class="empty-state">
-                                            <div class="empty-icon">📋</div>
                                             <h3>Sin actividad reciente</h3>
-                                            <p>Las detecciones aparecerán aquí cuando el sistema procese imágenes.</p>
+                                            <p>Las detecciones apareceran aqui cuando el sistema procese imagenes.</p>
                                         </div>
                                     </td>
                                 </tr>

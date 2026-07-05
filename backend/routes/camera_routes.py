@@ -65,8 +65,27 @@ def generate_frames():
 
 
 @router.get("/stream")
-async def video_stream(current_user: dict = Depends(get_current_user)):
-    """Live MJPEG video stream from webcam with detection overlay."""
+async def video_stream(token: str = ""):
+    """Live MJPEG video stream from webcam with detection overlay.
+    Accepts JWT token as query parameter since img tags cannot send headers.
+    """
+    # Validate token manually (img tags can't send Authorization header)
+    if not token:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "Token requerido"}, status_code=401)
+
+    from jose import JWTError, jwt as jose_jwt
+    from config import JWT_SECRET, JWT_ALGORITHM
+
+    try:
+        payload = jose_jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if not payload.get("sub"):
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "Token invalido"}, status_code=401)
+    except (JWTError, Exception):
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"detail": "Token invalido"}, status_code=401)
+
     return StreamingResponse(
         generate_frames(), media_type="multipart/x-mixed-replace; boundary=frame"
     )

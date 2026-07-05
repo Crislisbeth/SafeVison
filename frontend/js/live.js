@@ -29,7 +29,7 @@ function startCamera() {
     btnCapture.style.display = 'inline-flex';
 
     isStreaming = true;
-    showToast('📹 Cámara iniciada', 'success');
+    showToast('Camara iniciada', 'success');
 }
 
 function stopCamera() {
@@ -53,7 +53,7 @@ function stopCamera() {
 
     // Release camera on server
     apiFetch('/api/camera/release', { method: 'POST' }).catch(() => { });
-    showToast('⏹ Cámara detenida', 'info');
+    showToast('Camara detenida', 'info');
 }
 
 async function captureFrame() {
@@ -61,7 +61,7 @@ async function captureFrame() {
     btnCapture.disabled = true;
 
     try {
-        showToast('📸 Capturando y analizando...', 'info');
+        showToast('Capturando y analizando...', 'info');
 
         const result = await apiFetch('/api/camera/capture?camera_id=CAM-001', {
             method: 'POST',
@@ -70,7 +70,7 @@ async function captureFrame() {
         if (result) {
             captures.unshift(result);
             renderCaptures();
-            showToast('✅ Captura analizada correctamente', 'success');
+            showToast('Captura analizada correctamente', 'success');
         }
     } catch (err) {
         showToast(`Error: ${err.message}`, 'error');
@@ -79,44 +79,79 @@ async function captureFrame() {
     }
 }
 
+async function deleteCapture(index, id, event) {
+    event.stopPropagation(); // Don't navigate to detection detail
+
+    if (!confirm('Desea eliminar esta captura?')) return;
+
+    try {
+        await apiFetch(`/api/detections/${id}`, { method: 'DELETE' });
+        captures.splice(index, 1);
+        renderCaptures();
+        showToast('Captura eliminada', 'success');
+    } catch (err) {
+        showToast(`Error al eliminar: ${err.message}`, 'error');
+    }
+}
+
+function clearAllCaptures() {
+    if (captures.length === 0) return;
+    if (!confirm('Desea eliminar todas las capturas?')) return;
+
+    // Delete all from backend
+    const promises = captures.map(cap =>
+        apiFetch(`/api/detections/${cap.id}`, { method: 'DELETE' }).catch(() => {})
+    );
+
+    Promise.all(promises).then(() => {
+        captures = [];
+        renderCaptures();
+        showToast('Todas las capturas eliminadas', 'success');
+    });
+}
+
 function renderCaptures() {
     const container = document.getElementById('capturesList');
 
     if (captures.length === 0) {
         container.innerHTML = `
             <div class="empty-state" style="padding:30px 10px;">
-                <div class="empty-icon">📸</div>
-                <h3>Sin capturas</h3>
-                <p>Las capturas aparecerán aquí al presionar "Capturar y Analizar".</p>
+                <div class="empty-icon">Sin capturas</div>
+                <p>Las capturas apareceran aqui al presionar "Capturar y Analizar".</p>
             </div>
         `;
         return;
     }
 
-    container.innerHTML = captures.map(cap => {
+    container.innerHTML = captures.map((cap, index) => {
         const ts = new Date(cap.timestamp);
         const time = ts.toLocaleTimeString('es-EC', { hour12: false });
         const summary = cap.summary || {};
 
         let summaryText = [];
-        if (summary.mask) summaryText.push(`😷 ${summary.mask}`);
-        if (summary.no_mask) summaryText.push(`🚫 ${summary.no_mask}`);
-        if (summary.helmet) summaryText.push(`⛑️ ${summary.helmet}`);
-        if (summary.no_helmet) summaryText.push(`⚠️ ${summary.no_helmet}`);
+        if (summary.mask) summaryText.push(`Mascarilla: ${summary.mask}`);
+        if (summary.no_mask) summaryText.push(`Sin mascarilla: ${summary.no_mask}`);
+        if (summary.helmet) summaryText.push(`Casco: ${summary.helmet}`);
+        if (summary.no_helmet) summaryText.push(`Sin casco: ${summary.no_helmet}`);
 
         return `
-            <div class="live-detection-item slide-up" onclick="window.location.href='/detection/${cap.id}'">
+            <div class="live-detection-item slide-up">
                 <div class="det-header">
                     <span class="badge badge-${cap.alert_level}">${alertLabel(cap.alert_level)}</span>
-                    <span class="det-time">${time}</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span class="det-time">${time}</span>
+                        <button class="btn-delete-capture" onclick="deleteCapture(${index}, '${cap.id}', event)" title="Eliminar captura">&#10005;</button>
+                    </div>
                 </div>
-                <div class="det-summary">${summaryText.join(' ') || 'Sin detecciones'}</div>
+                <div class="det-summary" onclick="window.location.href='/detection/${cap.id}'" style="cursor:pointer;">
+                    ${summaryText.join(' | ') || 'Sin detecciones'}
+                </div>
             </div>
         `;
     }).join('');
 }
 
 function alertLabel(level) {
-    const labels = { high: '⚠ Alta', medium: '⚡ Media', low: '✅ Baja' };
+    const labels = { high: 'Alta', medium: 'Media', low: 'Baja' };
     return labels[level] || level;
 }

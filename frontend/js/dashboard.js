@@ -41,11 +41,11 @@ async function loadActivity() {
         if (activity.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="4">
+                    <td colspan="5">
                         <div class="empty-state">
-                            <div class="empty-icon">📋</div>
+                            <div class="empty-icon">Sin actividad</div>
                             <h3>Sin actividad reciente</h3>
-                            <p>Las detecciones aparecerán aquí cuando el sistema procese imágenes.</p>
+                            <p>Las detecciones apareceran aqui cuando el sistema procese imagenes.</p>
                         </div>
                     </td>
                 </tr>
@@ -54,11 +54,12 @@ async function loadActivity() {
         }
 
         tbody.innerHTML = activity.map(item => `
-            <tr onclick="window.location.href='/detection/${item.id}'">
-                <td style="color:var(--text-primary); font-weight:500;">${item.event}</td>
+            <tr>
+                <td style="color:var(--text-primary); font-weight:500; cursor:pointer;" onclick="window.location.href='/detection/${item.id}'">${item.event}</td>
                 <td>${item.camera}</td>
                 <td>${item.time}</td>
                 <td><span class="badge badge-${item.alert_level}">${alertLabel(item.alert_level)}</span></td>
+                <td><button class="btn-delete-capture" onclick="deleteDetection('${item.id}')" title="Eliminar">&#10005;</button></td>
             </tr>
         `).join('');
 
@@ -138,6 +139,41 @@ async function analyzeImage() {
                 window.location.href = `/detection/${result.id}`;
             }, 1000);
         }
+    } catch (err) {
+        showToast(`Error: ${err.message}`, 'error');
+    }
+}
+
+async function deleteDetection(id) {
+    if (!confirm('Desea eliminar esta deteccion?')) return;
+
+    try {
+        await apiFetch(`/api/detections/${id}`, { method: 'DELETE' });
+        showToast('Deteccion eliminada', 'success');
+        loadStats();
+        loadActivity();
+    } catch (err) {
+        showToast(`Error: ${err.message}`, 'error');
+    }
+}
+
+async function clearAllDetections() {
+    if (!confirm('Desea eliminar TODAS las detecciones?')) return;
+
+    try {
+        const activity = await apiFetch('/api/dashboard/activity');
+        if (!activity || activity.length === 0) {
+            showToast('No hay detecciones para eliminar', 'info');
+            return;
+        }
+
+        for (const item of activity) {
+            await apiFetch(`/api/detections/${item.id}`, { method: 'DELETE' }).catch(() => {});
+        }
+
+        showToast('Todas las detecciones eliminadas', 'success');
+        loadStats();
+        loadActivity();
     } catch (err) {
         showToast(`Error: ${err.message}`, 'error');
     }

@@ -107,3 +107,22 @@ async def analyze_image(
     detection_doc["evidence_url"] = get_evidence_url(evidence_path)
 
     return detection_doc
+
+
+@router.delete("/{detection_id}")
+async def delete_detection(
+    detection_id: str, current_user: dict = Depends(get_current_user)
+):
+    """Delete a detection record."""
+    db = get_db()
+
+    try:
+        det = await db.detections.find_one({"_id": ObjectId(detection_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="ID de deteccion invalido")
+
+    if not det:
+        raise HTTPException(status_code=404, detail="Deteccion no encontrada")
+
+    await db.detections.delete_one({"_id": ObjectId(detection_id)})
+    return {"message": "Deteccion eliminada", "id": detection_id}
