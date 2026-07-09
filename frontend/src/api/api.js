@@ -40,6 +40,9 @@ export async function apiFetch(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  // Bypass ngrok warning screen for APIs
+  headers['ngrok-skip-browser-warning'] = '69420';
+
   // Don't set Content-Type for FormData
   if (!(options.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
