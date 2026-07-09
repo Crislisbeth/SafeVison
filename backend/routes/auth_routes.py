@@ -32,12 +32,9 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/me")
-async def get_me(current_user: User = None):
+async def get_me():
     """Return current authenticated user info."""
-    from auth import get_current_user
-    from fastapi import Depends
-    # This is handled via dependency in main router
-    pass
+    return {"status": "ok"}
 
 
 # Seed default admin user

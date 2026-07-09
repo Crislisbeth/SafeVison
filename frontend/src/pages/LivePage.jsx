@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/Sidebar.jsx';
 import Header from '../components/Header.jsx';
 import { useToast } from '../components/Toast.jsx';
-import { apiFetch, getToken } from '../api/api.js';
+import { apiFetch, getToken, API_BASE } from '../api/api.js';
 
 function alertLabel(level) {
   const labels = { high: 'Alta', medium: 'Media', low: 'Baja' };
@@ -69,7 +69,7 @@ export default function LivePage() {
   };
 
   const token = getToken();
-  const streamUrl = `/api/camera/stream?token=${token}`;
+  const streamUrl = `${API_BASE}/api/camera/stream?token=${token}`;
 
   return (
     <div className="app-layout">
