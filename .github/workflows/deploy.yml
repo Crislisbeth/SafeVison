@@ -38,7 +38,7 @@ jobs:
       - name: Build
         working-directory: ./frontend
         env:
-          VITE_API_URL: https://milton-cashiers-scuba-readily.trycloudflare.com
+          VITE_API_URL: https://mpeg-affecting-dale-selecting.trycloudflare.com
         run: npm run build
         
       - name: Upload artifact
