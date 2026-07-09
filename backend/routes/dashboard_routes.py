@@ -1,28 +1,37 @@
 from fastapi import APIRouter, Depends
 from datetime import datetime, timedelta
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import func
+
 from database import get_db
 from auth import get_current_user
+from models_db import User, Detection, Camera
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 @router.get("/stats")
-async def get_stats(current_user: dict = Depends(get_current_user)):
+async def get_stats(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Return dashboard statistics."""
-    db = get_db()
+    
+    total_cameras_result = await db.execute(select(func.count(Camera.id)))
+    total_cameras = total_cameras_result.scalar() or 0
 
-    total_cameras = await db.cameras.count_documents({})
-    active_cameras = await db.cameras.count_documents({"status": "active"})
-    total_detections = await db.detections.count_documents({})
+    active_cameras_result = await db.execute(select(func.count(Camera.id)).filter(Camera.status == "active"))
+    active_cameras = active_cameras_result.scalar() or 0
+
+    total_detections_result = await db.execute(select(func.count(Detection.id)))
+    total_detections = total_detections_result.scalar() or 0
 
     # Today's detections
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_detections = await db.detections.count_documents(
-        {"timestamp": {"$gte": today_start}}
-    )
+    today_detections_result = await db.execute(select(func.count(Detection.id)).filter(Detection.timestamp >= today_start))
+    today_detections = today_detections_result.scalar() or 0
 
     # High alerts
-    high_alerts = await db.detections.count_documents({"alert_level": "high"})
+    high_alerts_result = await db.execute(select(func.count(Detection.id)).filter(Detection.alert_level == "high"))
+    high_alerts = high_alerts_result.scalar() or 0
 
     return {
         "total_cameras": total_cameras,
@@ -36,17 +45,15 @@ async def get_stats(current_user: dict = Depends(get_current_user)):
 
 @router.get("/activity")
 async def get_activity(
-    limit: int = 20, current_user: dict = Depends(get_current_user)
+    limit: int = 20, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     """Return recent detection activity."""
-    db = get_db()
-
-    cursor = db.detections.find().sort("timestamp", -1).limit(limit)
-    detections = await cursor.to_list(length=limit)
+    result = await db.execute(select(Detection).order_by(Detection.timestamp.desc()).limit(limit))
+    detections = result.scalars().all()
 
     activity = []
     for det in detections:
-        summary = det.get("summary", {})
+        summary = det.summary or {}
         no_mask = summary.get("no_mask", 0)
         no_helmet = summary.get("no_helmet", 0)
 
@@ -60,7 +67,7 @@ async def get_activity(
             event = "Cumplimiento verificado"
 
         # Time formatting
-        ts = det.get("timestamp", datetime.utcnow())
+        ts = det.timestamp or datetime.utcnow()
         now = datetime.utcnow()
         diff = now - ts
         if diff < timedelta(minutes=1):
@@ -74,11 +81,11 @@ async def get_activity(
 
         activity.append(
             {
-                "id": str(det["_id"]),
+                "id": str(det.id),
                 "event": event,
-                "camera": det.get("camera_name", "Desconocida"),
+                "camera": det.camera_name or "Desconocida",
                 "time": time_str,
-                "alert_level": det.get("alert_level", "low"),
+                "alert_level": det.alert_level or "low",
             }
         )
 

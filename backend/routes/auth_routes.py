@@ -1,34 +1,38 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
 from models import LoginRequest, LoginResponse
 from auth import verify_password, create_token, hash_password
-from database import get_db
+from database import get_db, AsyncSessionLocal
+from models_db import User, Camera
 
 router = APIRouter(prefix="/api", tags=["auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(req: LoginRequest):
+async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     """Authenticate user and return JWT token."""
-    db = get_db()
-    user = await db.users.find_one({"username": req.username})
+    result = await db.execute(select(User).filter(User.username == req.username))
+    user = result.scalars().first()
 
-    if not user or not verify_password(req.password, user["password"]):
+    if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
-    token = create_token({"sub": user["username"]})
+    token = create_token({"sub": user.username})
 
     return LoginResponse(
         access_token=token,
         user={
-            "username": user["username"],
-            "full_name": user["full_name"],
-            "role": user["role"],
+            "username": user.username,
+            "full_name": user.full_name,
+            "role": user.role,
         },
     )
 
 
 @router.get("/me")
-async def get_me(current_user: dict = None):
+async def get_me(current_user: User = None):
     """Return current authenticated user info."""
     from auth import get_current_user
     from fastapi import Depends
@@ -38,42 +42,32 @@ async def get_me(current_user: dict = None):
 
 # Seed default admin user
 async def seed_admin():
-    """Create default admin user if none exists."""
-    db = get_db()
-    existing = await db.users.find_one({"username": "admin"})
-    if not existing:
-        await db.users.insert_one(
-            {
-                "username": "admin",
-                "password": hash_password("admin123"),
-                "full_name": "Administrador SafeVision",
-                "role": "admin",
-            }
-        )
-        print("[OK] Admin user created (admin / admin123)")
+    """Create default admin user and cameras if none exists."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).filter(User.username == "admin"))
+        existing_user = result.scalars().first()
+        
+        if not existing_user:
+            admin_user = User(
+                username="admin",
+                password_hash=hash_password("admin123"),
+                full_name="Administrador SafeVision",
+                role="admin"
+            )
+            db.add(admin_user)
+            await db.commit()
+            print("[OK] Admin user created (admin / admin123)")
 
-    # Seed cameras
-    cam_count = await db.cameras.count_documents({})
-    if cam_count == 0:
-        cameras = [
-            {
-                "camera_id": "CAM-001",
-                "name": "Entrada Principal",
-                "location": "Edificio A - Planta Baja",
-                "status": "active",
-            },
-            {
-                "camera_id": "CAM-002",
-                "name": "Laboratorio B",
-                "location": "Edificio B - Piso 2",
-                "status": "active",
-            },
-            {
-                "camera_id": "CAM-003",
-                "name": "Taller de Ingeniería",
-                "location": "Edificio C - Piso 1",
-                "status": "inactive",
-            },
-        ]
-        await db.cameras.insert_many(cameras)
-        print("[OK] Cameras seeded (3 cameras)")
+        # Seed cameras
+        result = await db.execute(select(Camera))
+        cameras = result.scalars().all()
+        
+        if len(cameras) == 0:
+            default_cameras = [
+                Camera(camera_id="CAM-001", name="Entrada Principal", location="Edificio A - Planta Baja", status="active"),
+                Camera(camera_id="CAM-002", name="Laboratorio B", location="Edificio B - Piso 2", status="active"),
+                Camera(camera_id="CAM-003", name="Taller de Ingeniería", location="Edificio C - Piso 1", status="inactive"),
+            ]
+            db.add_all(default_cameras)
+            await db.commit()
+            print("[OK] Cameras seeded (3 cameras)")

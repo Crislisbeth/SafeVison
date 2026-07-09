@@ -1,11 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from datetime import datetime
-from bson import ObjectId
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import func
+import math
+
 from database import get_db
 from auth import get_current_user
 from services.detection_service import run_detection
 from services.storage_service import save_evidence, get_evidence_url
-import io
+from models_db import User, Detection, Camera
+from models import DetectionResult
 
 router = APIRouter(prefix="/api/detections", tags=["detections"])
 
@@ -14,55 +19,71 @@ router = APIRouter(prefix="/api/detections", tags=["detections"])
 async def list_detections(
     page: int = 1,
     limit: int = 20,
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """List detections with pagination."""
-    db = get_db()
     skip = (page - 1) * limit
 
-    total = await db.detections.count_documents({})
-    cursor = db.detections.find().sort("timestamp", -1).skip(skip).limit(limit)
-    detections = await cursor.to_list(length=limit)
+    total_result = await db.execute(select(func.count(Detection.id)))
+    total = total_result.scalar() or 0
+
+    result = await db.execute(select(Detection).order_by(Detection.timestamp.desc()).offset(skip).limit(limit))
+    detections = result.scalars().all()
 
     items = []
     for det in detections:
-        det["_id"] = str(det["_id"])
-        det["id"] = det.pop("_id")
-        items.append(det)
+        det_dict = {
+            "id": det.id,
+            "camera_id": det.camera_id,
+            "camera_name": det.camera_name,
+            "timestamp": det.timestamp,
+            "alert_level": det.alert_level,
+            "summary": det.summary,
+            "evidence_path": det.evidence_path,
+            "status": det.status
+        }
+        items.append(det_dict)
 
-    return {"items": items, "total": total, "page": page, "pages": (total + limit - 1) // limit}
+    return {"items": items, "total": total, "page": page, "pages": math.ceil(total / limit) if total > 0 else 1}
 
 
 @router.get("/{detection_id}")
 async def get_detection(
-    detection_id: str, current_user: dict = Depends(get_current_user)
+    detection_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     """Get detection detail with evidence URL."""
-    db = get_db()
-
-    try:
-        det = await db.detections.find_one({"_id": ObjectId(detection_id)})
-    except Exception:
-        raise HTTPException(status_code=400, detail="ID de detección inválido")
+    result = await db.execute(select(Detection).filter(Detection.id == detection_id))
+    det = result.scalars().first()
 
     if not det:
         raise HTTPException(status_code=404, detail="Detección no encontrada")
 
-    det["_id"] = str(det["_id"])
-    det["id"] = det.pop("_id")
+    det_dict = {
+        "id": det.id,
+        "camera_id": det.camera_id,
+        "camera_name": det.camera_name,
+        "timestamp": det.timestamp,
+        "alert_level": det.alert_level,
+        "summary": det.summary,
+        "evidence_path": det.evidence_path,
+        "status": det.status,
+        "detections": [] # We don't save bounding boxes yet in DB, just return empty to satisfy schema
+    }
 
     # Get evidence URL
-    if det.get("evidence_path"):
-        det["evidence_url"] = get_evidence_url(det["evidence_path"])
+    if det.evidence_path:
+        det_dict["evidence_url"] = get_evidence_url(det.evidence_path)
 
-    return det
+    return det_dict
 
 
-@router.post("/analyze")
+@router.post("/analyze", response_model=DetectionResult)
 async def analyze_image(
     file: UploadFile = File(...),
     camera_id: str = "CAM-001",
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Upload an image, run YOLOv8 detection, and save results."""
     contents = await file.read()
@@ -84,45 +105,50 @@ async def analyze_image(
     evidence_path = save_evidence(annotated_image, filename)
 
     # Get camera info
-    db = get_db()
-    camera = await db.cameras.find_one({"camera_id": camera_id})
-    camera_name = camera["name"] if camera else "Desconocida"
+    cam_result = await db.execute(select(Camera).filter(Camera.camera_id == camera_id))
+    camera = cam_result.scalars().first()
+    camera_name = camera.name if camera else "Desconocida"
 
     # Save to DB
-    detection_doc = {
-        "camera_id": camera_id,
-        "camera_name": camera_name,
-        "timestamp": timestamp,
-        "alert_level": alert_level,
-        "detections": detections,
-        "summary": summary,
-        "evidence_path": evidence_path,
-        "status": "active",
-    }
+    new_detection = Detection(
+        camera_id=camera_id,
+        camera_name=camera_name,
+        timestamp=timestamp,
+        alert_level=alert_level,
+        summary=summary,
+        evidence_path=evidence_path,
+        status="active",
+    )
+    db.add(new_detection)
+    await db.commit()
+    await db.refresh(new_detection)
 
-    result = await db.detections.insert_one(detection_doc)
-
-    detection_doc["_id"] = str(result.inserted_id)
-    detection_doc["id"] = detection_doc.pop("_id")
-    detection_doc["evidence_url"] = get_evidence_url(evidence_path)
-
-    return detection_doc
+    return DetectionResult(
+        id=new_detection.id,
+        camera_id=new_detection.camera_id,
+        camera_name=new_detection.camera_name,
+        timestamp=new_detection.timestamp,
+        alert_level=new_detection.alert_level,
+        detections=detections,
+        summary=new_detection.summary,
+        evidence_path=new_detection.evidence_path,
+        status=new_detection.status,
+        evidence_url=get_evidence_url(new_detection.evidence_path)
+    )
 
 
 @router.delete("/{detection_id}")
 async def delete_detection(
-    detection_id: str, current_user: dict = Depends(get_current_user)
+    detection_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ):
     """Delete a detection record."""
-    db = get_db()
-
-    try:
-        det = await db.detections.find_one({"_id": ObjectId(detection_id)})
-    except Exception:
-        raise HTTPException(status_code=400, detail="ID de deteccion invalido")
+    result = await db.execute(select(Detection).filter(Detection.id == detection_id))
+    det = result.scalars().first()
 
     if not det:
         raise HTTPException(status_code=404, detail="Deteccion no encontrada")
 
-    await db.detections.delete_one({"_id": ObjectId(detection_id)})
+    await db.delete(det)
+    await db.commit()
+    
     return {"message": "Deteccion eliminada", "id": detection_id}

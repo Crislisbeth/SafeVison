@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 
@@ -16,6 +16,8 @@ class LoginResponse(BaseModel):
 
 
 class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
     username: str
     full_name: str
     role: str
@@ -32,19 +34,21 @@ class BoundingBox(BaseModel):
 
 
 class DetectionResult(BaseModel):
-    id: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+    id: Optional[int] = None
     camera_id: str = "CAM-001"
     camera_name: str = "Cámara Principal"
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     alert_level: str = "low"  # low, medium, high
-    detections: List[BoundingBox] = []
+    detections: List[BoundingBox] = [] # Note: We don't save bounding boxes in DB yet, but keep it for API
     summary: dict = {}  # {"mask": 2, "no_mask": 1, "helmet": 0, ...}
     evidence_path: str = ""
     status: str = "active"  # active, reviewed, archived
 
 
 class DetectionListItem(BaseModel):
-    id: str
+    model_config = ConfigDict(from_attributes=True)
+    id: int
     camera_name: str
     timestamp: datetime
     alert_level: str

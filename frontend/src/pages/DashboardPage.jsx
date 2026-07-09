@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 import Sidebar from '../components/Sidebar.jsx';
 import Header from '../components/Header.jsx';
 import StatCard from '../components/StatCard.jsx';
@@ -24,6 +25,8 @@ export default function DashboardPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   const loadStats = useCallback(async () => {
     try {
@@ -96,22 +99,26 @@ export default function DashboardPage() {
         <Header title="Panel de Control" />
 
         <div className="page-content">
-          {/* Stats Cards */}
-          <div className="stats-grid stagger">
-            <StatCard icon="📷" value={stats.active_cameras} label="Cámaras Activas" color="cyan" />
-            <StatCard icon="✅" value={stats.today_detections} label="Detecciones Hoy" color="green" />
-            <StatCard icon="📋" value={stats.total_detections} label="Total Detecciones" color="orange" />
-            <StatCard icon="⚠️" value={stats.high_alerts} label="Alertas Altas" color="red" />
-          </div>
+          {/* Stats Cards - Only for Admin */}
+          {isAdmin && (
+            <div className="stats-grid stagger">
+              <StatCard icon="📷" value={stats.active_cameras} label="Cámaras Activas" color="cyan" />
+              <StatCard icon="✅" value={stats.today_detections} label="Detecciones Hoy" color="green" />
+              <StatCard icon="📋" value={stats.total_detections} label="Total Detecciones" color="orange" />
+              <StatCard icon="⚠️" value={stats.high_alerts} label="Alertas Altas" color="red" />
+            </div>
+          )}
 
           {/* Quick Actions */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
             <Link to="/live" className="btn btn-primary" style={{ width: 'auto' }}>
               📹 Cámara en Vivo
             </Link>
-            <button className="btn btn-secondary" onClick={() => setModalOpen(true)}>
-              🔍 Analizar Imagen
-            </button>
+            {isAdmin && (
+              <button className="btn btn-secondary" onClick={() => setModalOpen(true)}>
+                🔍 Analizar Imagen
+              </button>
+            )}
             <button className="btn btn-secondary" onClick={() => { loadStats(); loadActivity(); }}>
               🔄 Actualizar
             </button>
@@ -121,9 +128,11 @@ export default function DashboardPage() {
           <div className="section-card">
             <div className="section-header">
               <h2>Actividad Reciente</h2>
-              <button className="btn btn-sm btn-secondary" onClick={handleClearAll} style={{ fontSize: '0.75rem' }}>
-                Limpiar todo
-              </button>
+              {isAdmin && (
+                <button className="btn btn-sm btn-secondary" onClick={handleClearAll} style={{ fontSize: '0.75rem' }}>
+                  Limpiar todo
+                </button>
+              )}
             </div>
             <div className="table-container">
               <table>
@@ -133,7 +142,7 @@ export default function DashboardPage() {
                     <th>Cámara</th>
                     <th>Tiempo</th>
                     <th>Alerta</th>
-                    <th style={{ width: 50 }} />
+                    {isAdmin && <th style={{ width: 50 }} />}
                   </tr>
                 </thead>
                 <tbody>
@@ -162,15 +171,17 @@ export default function DashboardPage() {
                             {alertLabel(item.alert_level)}
                           </span>
                         </td>
-                        <td>
-                          <button
-                            className="btn-delete-capture"
-                            onClick={() => handleDeleteDetection(item.id)}
-                            title="Eliminar"
-                          >
-                            ✕
-                          </button>
-                        </td>
+                        {isAdmin && (
+                          <td>
+                            <button
+                              className="btn-delete-capture"
+                              onClick={() => handleDeleteDetection(item.id)}
+                              title="Eliminar"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))
                   )}

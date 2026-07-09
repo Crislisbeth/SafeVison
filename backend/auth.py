@@ -4,8 +4,12 @@ from jose import JWTError, jwt
 import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
 from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
 from database import get_db
+from models_db import User
 
 security = HTTPBearer()
 
@@ -29,6 +33,7 @@ def create_token(data: dict) -> str:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
 ):
     """Dependency: extracts and validates user from JWT token."""
     token = credentials.credentials
@@ -40,10 +45,9 @@ async def get_current_user(
     except JWTError:
         raise HTTPException(status_code=401, detail="Token invalido o expirado")
 
-    db = get_db()
-    user = await db.users.find_one({"username": username})
+    result = await db.execute(select(User).filter(User.username == username))
+    user = result.scalars().first()
     if user is None:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
 
-    user["_id"] = str(user["_id"])
     return user

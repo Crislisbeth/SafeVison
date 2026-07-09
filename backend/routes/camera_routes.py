@@ -1,15 +1,17 @@
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from datetime import datetime
+import cv2
+import time
+import threading
+
 from auth import get_current_user
 from services.detection_service import run_detection
 from services.storage_service import save_evidence, get_evidence_url
 from database import get_db
-from datetime import datetime
-import cv2
-import numpy as np
-import time
-import threading
-import io
+from models_db import User, Camera, Detection
 
 router = APIRouter(prefix="/api/camera", tags=["camera"])
 
@@ -94,7 +96,8 @@ async def video_stream(token: str = ""):
 @router.post("/capture")
 async def capture_frame(
     camera_id: str = "CAM-001",
-    current_user: dict = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Capture current frame, run detection, and save as a new detection record."""
     with camera_lock:
@@ -125,32 +128,41 @@ async def capture_frame(
     evidence_path = save_evidence(annotated_image, filename)
 
     # Get camera info
-    db = get_db()
-    camera_doc = await db.cameras.find_one({"camera_id": camera_id})
-    camera_name = camera_doc["name"] if camera_doc else "Desconocida"
+    cam_result = await db.execute(select(Camera).filter(Camera.camera_id == camera_id))
+    camera_doc = cam_result.scalars().first()
+    camera_name = camera_doc.name if camera_doc else "Desconocida"
 
     # Save to DB
-    detection_doc = {
-        "camera_id": camera_id,
-        "camera_name": camera_name,
-        "timestamp": timestamp,
-        "alert_level": alert_level,
+    new_detection = Detection(
+        camera_id=camera_id,
+        camera_name=camera_name,
+        timestamp=timestamp,
+        alert_level=alert_level,
+        summary=summary,
+        evidence_path=evidence_path,
+        status="active"
+    )
+
+    db.add(new_detection)
+    await db.commit()
+    await db.refresh(new_detection)
+
+    return {
+        "id": new_detection.id,
+        "camera_id": new_detection.camera_id,
+        "camera_name": new_detection.camera_name,
+        "timestamp": new_detection.timestamp,
+        "alert_level": new_detection.alert_level,
         "detections": detections,
-        "summary": summary,
-        "evidence_path": evidence_path,
-        "status": "active",
+        "summary": new_detection.summary,
+        "evidence_path": new_detection.evidence_path,
+        "status": new_detection.status,
+        "evidence_url": get_evidence_url(evidence_path)
     }
-
-    result = await db.detections.insert_one(detection_doc)
-    detection_doc["_id"] = str(result.inserted_id)
-    detection_doc["id"] = detection_doc.pop("_id")
-    detection_doc["evidence_url"] = get_evidence_url(evidence_path)
-
-    return detection_doc
 
 
 @router.post("/release")
-async def release(current_user: dict = Depends(get_current_user)):
+async def release(current_user: User = Depends(get_current_user)):
     """Release webcam resources."""
     release_camera()
     return {"message": "Cámara liberada"}
